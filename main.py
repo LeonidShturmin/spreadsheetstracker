@@ -2,120 +2,153 @@ import time
 import asyncio
 import re
 import json
+import logging
 
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
+from google.auth.exceptions import GoogleAuthError
+from googleapiclient.errors import HttpError
+from typing import Union, Tuple
 import telegram
 import numpy as np
 
 from config import tg_token
 
+logging.basicConfig(level='ERROR', filename='logs.log')
+logger = logging.getLogger()
+
 SERVICE_ACCOUNT_FILE = 'credentials.json'
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 SPREADSHEET_NAME = 'testsheet'
-# sheet_id = '1rIuEB5OI7bP-_hpXCoL-UllPLPzGnpRT0tjJP0a92z8'
-# range_name = 'A1:C5'
-start_coordinates = {"leftcol": 'A', "leftrow": 1, "rightcol": 'B', "rightrow":  2}
+ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+start_coordinates = {"leftcol": 'A', "leftrow": 1, "rightcol": 'B', "rightrow":  1}
 bot = telegram.Bot(token=tg_token)
 
-# def check_addition_of_rows_columns():
-
-#     credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-#     service = build('sheets', 'v4', credentials=credentials)
-
-
-#     # Получаем данные из заданного диапазона ячеек
-#     result = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=range_name).execute()
-#     # rows = len(result.get('values'))
-#     # cols = len(result.get('values')[0])
-#     return print(result)
-
-
-def speardsheets_connection_check(account_file, spreadsheet_name, scopes) -> tuple[bool, gspread.worksheet.Worksheet]:
+def speardsheets_connection_check(account_file: str, spreadsheet_name: str,
+                                  scopes: list, sheet_number: int) -> Union[Tuple[
+                                  bool, gspread.worksheet.Worksheet], None]:
     """
-    checking a spreadsheet connection
+    checking a connection with Google Sheets API
+    :param account_file: Path to credentials file
+    :param spreadsheet_name: Name of spreadseets
+    :param scopes: Rights of success
+    :return: A tuple containing the join flag and the table sheet object, or None on error
+    :sheet_number: Number of sheet 
     """
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(account_file, scopes=scopes)
         file = gspread.authorize(creds)
 
         workbook = file.open(spreadsheet_name)
-        sheets = workbook.sheet1
-
+        sheets = workbook.get_worksheet(sheet_number - 1)
         return True, sheets
     
+    except GoogleAuthError as ex:
+        logger.error('Error {}', ex)
+        return False
+
+    except HttpError as ex:
+        logger.error('Error %s', ex)
+        return False
+
+    except gspread.exceptions.GSpreadException as ex:
+        logger.error('Error %s', ex.__class__.__name__)
+        return False
+
+    except TimeoutError as ex:
+        logger.error('Error %s', ex)
+        return False
+
+    except ConnectionError as ex:
+        logger.error('Error %s', ex)
+        return False
+
+    except ValueError as ex:
+        logger.error('Error %s', ex)
+        return False
+
     except Exception as ex:
-        print(f'Respons from speardsheets_connection_check def..{ex}') # надо записывать это в лог
+        logger.error('Error %s' % (ex.__class__.__name__))
+        return False
 
-def extracting_values(sheets: gspread.worksheet.Worksheet, coordinates: dict) -> list: 
+# def extracting_values(sheets: gspread.worksheet.Worksheet, coordinates: dict) -> list: 
+#     """
+#     function to retrieve data from a sheet
+#     """
+#     range_name = list(coordinates.values())
+#     cell_values = sheets.range(f'{range_name[0]}{range_name[1]}:{range_name[2]}{range_name[3]}')
+
+#     return cell_values
+
+def converting_of_number(number: int) -> str:
     """
-    function to retrieve data from a sheet
+    the function takes as input the column number (str)
+    and returns its letter match in the spreadsheet
+    for example column number 27 is AA in the google spreadsheet
     """
+    if number // 26 == 0:
+        col_name = ALPHABET[number - 1]
+    else:
+        col_name = ALPHABET[number // 26 - 1] + ALPHABET[number % 26 - 1]
 
-    range_name = list(coordinates.values())
-    cell_values = sheets.range(f'{range_name[0]}{range_name[1]}:{range_name[2]}{range_name[3]}')
+    return col_name
 
-    return cell_values
-
-def search_ranges(sheets: gspread.worksheet.Worksheet, users_coordinates: dict):
+def search_ranges(sheets: gspread.worksheet.Worksheet, user_coordinates: dict) -> tuple[dict, list]:
     """
-    the function looks for a range of cells in a spreadsheet that has values
+    the function looks for a range of cells in a spreadsheet with values.
+    Returns the coordinates of a range and a list of values in that range  
     """
-    with open('matching_dictionary.json', 'r') as file:
-        matching_dictionary = json.load(file)
-    """получаем данные из словаря соответствия названия столбцов и их порядковые номера"""
+    all_values = sheets.get_all_values()
+    user_coordinates['rightrow'] = len(all_values)
+    number_of_columns = len(all_values[0])
+    user_coordinates['rightcol'] = converting_of_number(number_of_columns)
 
-    right_col = users_coordinates['rightcol']
-    """получаем название столбца правого диапазона"""
+    return user_coordinates, all_values
 
-    column_number = matching_dictionary[right_col]
-    """получаем порядковый номер правого столцба"""
+def compare_of_ranges(range_data: list) -> bool:
+    """
+    the function compares the range size. If the range has changed,
+    the number of added rows and columns is returned
+    
+    :range_data: two-dimensional array with data from a table at 2 points in time
+    """
+    row_info = 0
+    col_info = 0
+    range_data_1 = np.array(range_data[0])
+    range_data_2 = np.array(range_data[1])
 
-    counter = 0
-    flag = 0
-    while counter != column_number:
-        users_coordinates['rightrow'] += 1
-        new_cell_values = extracting_values(sheets, users_coordinates)
+    if len(range_data_1) != len(range_data_2):
+        rows_difference = len(range_data_2) - len(range_data_1)
+        row_info = 'Added {} rows'.format(rows_difference)
 
-        for cell in new_cell_values[-column_number:]:
-            values = ''.join(re.findall(r'\'(.*?)\'', str(cell)))
-            if values == '':
-                counter += 1
-        
-        flag += 1
-        users_coordinates['rightrow'] = flag
+    if len(range_data_1.transpose()) != len(range_data_2.transpose()):
+        col_difference = len(range_data_2.transpose()) - len(range_data_1.transpose())
+        col_info = 'Added {} cols'.format(col_difference)
 
-    print(users_coordinates)
-    # if counter == column_number:
-    #     column_number += 1 
-    #     result = [key for key, value in matching_dictionary.items() if value == column_number]
-    #     users_coordinates['rightcol'] = ''.join(result)
-    #     # new_cell_values = extracting_values(sheets, users_coordinates)
-    #     print(users_coordinates)
+    return row_info, col_info
 
-# print(new_cell_values)
-if __name__ == '__main__':
-    sheets_connection = speardsheets_connection_check(SERVICE_ACCOUNT_FILE, SPREADSHEET_NAME, SCOPES)
-    search_ranges(sheets_connection[1], start_coordinates)
-
-
-
-
-
-def value_comparison(data)-> tuple[bool, dict[str, list]]:
+def compare_table_values(data: list) -> tuple[bool, list[str]]:
     """
     function to compare values in a table at two points in time
-    """
-    flag = True
-    changes_info ={"changes": []}
-    for i, k in zip(data[0], data[1]):
-        if i != k:
-            changes_info["changes"].append(f'{i} -> {k}')
-            flag = False 
 
-    return flag, changes_info
+    :param data: A tuple of two lists of lists of strings.
+    :return: Tuple of flag and dictionary with changes.
+    """
+    flag = np.array_equal(data[0], data[1]) 
+    changes = []
+    if not flag:
+        for row_index, (row1, row2) in enumerate(zip(data[0], data[1])):
+            if row1 != row2:
+                for col_index, (cell1, cell2) in enumerate(zip(row1, row2)):
+                    if cell1 != cell2:
+                        name_col = converting_of_number(col_index+1)
+                        info = f'Changes {name_col}{row_index+1} - {cell1} -> {cell2}'
+                        changes.append(info)
+        flag = False
+        return flag, changes
+    
+    return flag, changes
 
 async def send_message(message):
     """
@@ -128,18 +161,19 @@ async def main(waitingtime):
     cell_values_list = []
 
     while True:
-        sheets_connection = speardsheets_connection_check(SERVICE_ACCOUNT_FILE, SPREADSHEET_NAME, SCOPES)
-        cell_values_list.append(extracting_values(sheets_connection[1], "B", 5))
+        sheets_connection = speardsheets_connection_check(SERVICE_ACCOUNT_FILE, SPREADSHEET_NAME, SCOPES, 1)
+        cell_values = search_ranges(sheets_connection[1], start_coordinates)
+        cell_values_list.append(cell_values[1])
 
         if len(cell_values_list) == 2:
-            value_comparison_result = value_comparison(cell_values_list)
-
-            if value_comparison_result[0] is False:
-                await send_message(value_comparison_result[1])
-
+            print(compare_of_ranges(cell_values_list)[0])
+            print(compare_of_ranges(cell_values_list)[1])
+            value_comparison_result = compare_table_values(cell_values_list)
+            print(value_comparison_result)
+            # await send_message(value_comparison_result[1])
             cell_values_list.pop(0) 
 
         time.sleep(waitingtime)
 
-# if __name__ == '__main__':
-    # asyncio.run(main(5))
+if __name__ == '__main__':
+    asyncio.run(main(5))
