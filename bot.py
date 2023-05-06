@@ -1,7 +1,6 @@
-import logging
-import pymorphy2
 import time
 
+import pymorphy2
 import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
@@ -41,20 +40,21 @@ async def start_command(message: types.Message):
 
 4. Перечислить через запятую номера листов для отслеживания. Например: 1, 3, 5"""
     markup = InlineKeyboardMarkup()
-    item = InlineKeyboardButton(text="Сервис аккаунт добавлен", callback_data="button_pressed")
+    item = InlineKeyboardButton(text="Сервис аккаунт добавлен", callback_data="account_added")
     markup.add(item)
 
     await message.answer(text=text, parse_mode=None, reply_markup=markup)
 
-@dp.callback_query_handler(lambda callback_query: callback_query.data == 'button_pressed')
-async def button_pressed_handler(callback_query: types.CallbackQuery):
+@dp.callback_query_handler(lambda callback_query: callback_query.data in ["account_added", "retry"])
+async def account_added_handler(callback_query: types.CallbackQuery):
     """
     the function catches clicking the "Сервис аккаунт добавлен" button and
     prompts you to input the table name, setting the FSM to the UserState.table_name state
     """
-    user_id = callback_query.message.chat.id
-    await UserState.table_name.set()
-    await bot.send_message(chat_id=user_id, text="Отлично, напиши название таблицы")
+    if callback_query.data == "account_added" or callback_query.data == "retry":
+        user_id = callback_query.message.chat.id
+        await UserState.table_name.set()
+        await bot.send_message(chat_id=user_id, text="Напиши название таблицы")
 
 @dp.message_handler(state=UserState.table_name)
 async def enter_table_name(message: types.Message, state: FSMContext):
@@ -74,14 +74,19 @@ async def enter_sheet_number(message: types.Message, state: FSMContext):
     the function is called after entering the sheet number,
     resets all FSM states and displays a message "Проверяем соединение с таблицей.."
     """
-    async with state.proxy() as data:
-        data['sheet_number'] = message.text
-
-    await state.reset_state(with_data=False)
-    await message.answer("Проверяем соединение с таблицей..")
-
     user_id = message.chat.id
-    await connection_check(user_id, state)
+    try:
+        sheet_number = int(message.text)
+
+        async with state.proxy() as data:
+            data['sheet_number'] = sheet_number
+
+        await state.reset_state(with_data=False)
+        await message.answer("Проверяем соединение с таблицей..")
+        await connection_check(user_id, state)
+        
+    except ValueError:
+        await bot.send_message(chat_id=user_id, text="Номер листа должен быть целым числом, введите еще раз")
 
 async def connection_check(user_id, state: FSMContext):
     """
@@ -91,16 +96,9 @@ async def connection_check(user_id, state: FSMContext):
     async with state.proxy() as data:
         table_name = data['table_name']
         sheet_number = data['sheet_number']
+        conn = speardsheets_connection_check(SERVICE_ACCOUNT_FILE, SCOPES, table_name, sheet_number)
 
-        try:
-            sheet_number = int(sheet_number)
-
-        except ValueError:
-            await bot.send_message(chat_id=user_id, text="Номер листа должен быть целым числом")
-
-        connection_consist = speardsheets_connection_check(SERVICE_ACCOUNT_FILE, SCOPES, table_name, sheet_number)
-
-    if connection_consist[0]:
+    if conn[0]:
         keyboard = types.InlineKeyboardMarkup(
             inline_keyboard=[
                 [
@@ -136,18 +134,6 @@ async def connection_check(user_id, state: FSMContext):
 
 Номер листа - {}""".format(table_name, sheet_number), reply_markup=keyboard)
 
-
-@dp.callback_query_handler(lambda callback_query: callback_query.data == "retry")
-async def retry_data(callback_query: types.CallbackQuery):
-    """
-    the function is called after pressing the "Ввести данные заново" button puts the FSM
-    into the UserState.table_name.set() state and offers to re-enter the data
-    """
-    user_id = callback_query.message.chat.id
-    await UserState.table_name.set()
-    await bot.send_message(chat_id=user_id, text="Введите название таблицы")
-
-
 @dp.callback_query_handler(lambda callback_query: callback_query.data in ["dynamic", "fix"])
 async def range_input(callback_query: types.CallbackQuery, state: FSMContext):
     """
@@ -161,52 +147,67 @@ async def range_input(callback_query: types.CallbackQuery, state: FSMContext):
         await bot.send_message(chat_id=user_id, text="Введите диапазон")
 
     elif callback_query.data == 'dynamic':
+        await UserState.interval.set()
         async with state.proxy() as data:
             table_name = data['table_name']
-            sheet_number = int(data['sheet_number'])
+            sheet_number = data['sheet_number']
 
         conn = speardsheets_connection_check(SERVICE_ACCOUNT_FILE, SCOPES, table_name, sheet_number)
         all_data = search_ranges(conn[1])
 
         left = all_data[0]['leftcol'] + str(all_data[0]['leftrow'])
         right = all_data[0]['rightcol'] + str(all_data[0]['rightrow'])
-
         start_range = left + ":" + right
 
-        await bot.send_message(chat_id=user_id, text=f"Стартовый диапазон - {start_range}")
+        async with state.proxy() as data:
+            data['range'] = None
+
+        await bot.send_message(chat_id=user_id,
+                               text=f"Стартовый диапазон - {start_range}. Осталось задать интервал обновлений в минутах")
 
 @dp.message_handler(state=UserState.range)
 async def range_interavl(message: types.Message, state: FSMContext):
     """
     afdsfdsfsd
     """
-    await UserState.interval.set()
     async with state.proxy() as data:
-        data['range'] = message.text
-        
-    await message.answer("Осталось определить интервал обновлений в минутах")
+        table_name = data['table_name']
+        sheet_number = data['sheet_number']
+
+    conn = speardsheets_connection_check(SERVICE_ACCOUNT_FILE, SCOPES, table_name, sheet_number)
+    cell_values = search_ranges(conn[1], message.text)
+
+    if cell_values[0] is None:
+        await message.answer("Диапазон должнен быть формата <code>A1:B4</code> латинскими буквами. Введите заново", parse_mode="HTML")
+
+    else:
+        await UserState.interval.set()
+        async with state.proxy() as data:
+            data['range'] = message.text
+
+        await message.answer("Осталось задать интервал обновлений в минутах")
 
 @dp.message_handler(state=UserState.interval)
 async def interavl_input(message: types.Message, state: FSMContext):
     """
     sdfdsfdsfds
     """
-    async with state.proxy() as data:
-        data['interval'] = message.text
-        table_name = data['table_name']
-        sheet_number = data['sheet_number']
-        user_range = data['range']
-        interval = data['interval']
+    user_id = message.chat.id
+    try:
+        async with state.proxy() as data:
+            data['interval'] = int(message.text)
 
-    markup = InlineKeyboardMarkup()
-    item = InlineKeyboardButton(text="Начать отслеживание", callback_data="starting")
-    markup.add(item)
+        markup = InlineKeyboardMarkup()
+        item = InlineKeyboardButton(text="Начать отслеживание", callback_data="starting")
+        markup.add(item)
 
-    await state.reset_state(with_data=False)
-    await message.answer(f"Готово! Интервал изменений - {interval} (минут)", parse_mode=None, reply_markup=markup)
+        await state.reset_state(with_data=False)
+        await message.answer(f"Готово! Интервал изменений - {message.text} (минут)", parse_mode=None, reply_markup=markup)
 
-
-
+    except ValueError:
+        await bot.send_message(chat_id=user_id, 
+                                    text="Интервал должен быть целым числом, введите еще раз")  
+                
 @dp.callback_query_handler(lambda callback_query: callback_query.data == "starting")
 async def some_function(callback_query: types.CallbackQuery, state: FSMContext):
     """
@@ -224,14 +225,16 @@ async def some_function(callback_query: types.CallbackQuery, state: FSMContext):
 
     async def loop():
         while True:
-            connection_consist = speardsheets_connection_check(SERVICE_ACCOUNT_FILE, SCOPES, table_name, int(sheet_number))
-            cell_values = search_ranges(connection_consist[1], user_range)
+            conn = speardsheets_connection_check(SERVICE_ACCOUNT_FILE, SCOPES, table_name, sheet_number)
+            cell_values = search_ranges(conn[1], user_range)
             cell_values_list.append(cell_values[1])
 
             if len(cell_values_list) == 2:
                 value_comparison_result = compare_table_values(cell_values_list)
 
-                print(value_comparison_result)
+                if value_comparison_result[0] is not True:
+                    await bot.send_message(chat_id=user_id, text=f"{value_comparison_result[1]}")
+
                 cell_values_list.pop(0) 
 
             await asyncio.sleep(int(interval))
@@ -239,4 +242,4 @@ async def some_function(callback_query: types.CallbackQuery, state: FSMContext):
     asyncio.create_task(loop())
 
 if __name__ == '__main__':
-    executor.start_polling(dp)
+    executor.start_polling(dp, skip_updates=True)
