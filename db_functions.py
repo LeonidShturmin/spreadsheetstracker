@@ -1,148 +1,195 @@
-from datetime import datetime, timezone
-from typing import Optional
-
-import time
+from typing import Optional, Union
+from datetime import datetime
+import aiomysql
 import pymysql
 
-from config import db_name, host, password, user 
+from logger import log_debug, log_error
 
-def server_connect() -> pymysql.connections.Connection:
+def server_connect_check(host: str, user: str, password: str) -> Optional[pymysql.Connection]:
     """server connection check
     """
     try:
-        connection = pymysql.connect(host=host,
-                                     user=user,
-                                     password=password)
-        print('successful server connect')
-        return connection
+        conn = pymysql.connect(host=host,
+                                user=user,
+                                password=password
+                                )
+        log_debug('seccessful server connection')
+        return conn
+    
     except Exception as ex:
-        return print(f'(Response from server_connect def...{ex}')
+        log_error(f"Server connection error: {ex}")
+        return None
 
-def connect_test() -> pymysql.connections.Connection:
-    """
-    database connection check
+async def db_connection_check(host: str, user: str, password: str) -> Optional[aiomysql.Connection]:
+    """server connection check
     """
     try:
-        connection = pymysql.connect(
-            host=host,
-            port=3306,
-            user=user,
-            password=password,
-            database=db_name,
-            cursorclass=pymysql.cursors.DictCursor
-        )
-        print('successful db connect')
-        return connection
+        conn = await aiomysql.connect(host=host,
+                                        user=user,
+                                        password=password)
+        log_debug('seccessful server connection')
+        return conn
+    
     except Exception as ex:
-        return print(f'(Response from connection test...{ex}')
+        log_error(f"Server connection error: {ex}")
+        return None
 
-def create_database():
+def create_database(conn: pymysql.Connection, db_name: str) -> None:
     """create database if it doesn't exist
     """
-    conn = server_connect()
-    cursor = conn.cursor()
-
     try:
-        cursor.execute(f"CREATE DATABASE {db_name}")
-        return print('database is create')
-    except pymysql.err.DatabaseError as ex:
-        return print(f'(Response from create_database def...{ex}')
-    finally:
-        conn.close()
+        with conn.cursor() as cursor:
+            cursor.execute(f"SHOW DATABASES")
+            bases_tuple = cursor.fetchall()
+            flag = 0
 
-def create_users_table():
+            for item in bases_tuple:
+                if item[0] == 'telegram_users':
+                    log_debug(f'database {db_name} already exist')
+                    flag += 1
 
-    conn = server_connect()
-    cursor = conn.cursor()
-    cursor.execute(f"USE {db_name}")
-
-    try:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users 
-            (
-                id int(11) NOT NULL AUTO_INCREMENT,
-                user_id int(20) NOT NULL,
-                user_name varchar(20) NOT NULL,
-                PRIMARY KEY (id),
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-            """
-        )
-        return print('table is create')
-    except Exception as ex:
-        return print(f'(Response from create_table def...{ex}')
-    finally:
-        conn.close()
-
-def create_sheets_info_table():
-
-    conn = server_connect()
-    cursor = conn.cursor()
-    cursor.execute(f"USE {db_name}")
-
-    try:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS user_tables
-            (
-                id int(11) NOT NULL AUTO_INCREMENT,
-                user_id int(20) NOT NULL,
-                spreadsheets_name varchar(20) NOT NULL,
-                PRIMARY KEY (id),
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-            """
-        )
-        return print('table is create')
-    except Exception as ex:
-        return print(f'(Response from create_table def...{ex}')
-    finally:
-        conn.close()
+            if flag == 0: 
+                cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
+                log_debug(f'database {db_name} successfully created')
+            
+            return None
     
-def insert_new_users(user_id: int, user_name: str):
+    except Exception as ex:
+        log_error(f"Error creating database: {ex}")
+        return None
+
+def create_tables(conn: pymysql.Connection, db_name: str) -> None:
+    """
+    Create tables if these dont exist
+    """
+    try:
+        with conn.cursor() as cursor:
+            conn.select_db(db_name)
+
+            cursor.execute("SHOW TABLES LIKE 'telegram_connections'")
+            result = cursor.fetchone()
+
+            if result:
+                log_debug('tables for telegram_users base already exists')
+            else:
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS telegram_connections
+                     
+                    (
+                        id int(11) NOT NULL AUTO_INCREMENT,
+                        user_id int(20) NOT NULL,
+                        connection_time DATETIME NOT NULL,
+                        PRIMARY KEY (id),
+                        UNIQUE KEY (user_id)
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS spreadsheets_users_data
+                    (
+                        id int(11) NOT NULL AUTO_INCREMENT,
+                        user_number int(20) NOT NULL,
+                        spreadsheets_name varchar(20) NOT NULL,
+                        sheet_number int(11) NOT NULL,
+                        data_range varchar(20) NOT NULL,
+                        interval_value int(11) NOT NULL,
+                        PRIMARY KEY (id),
+                        FOREIGN KEY (user_number) REFERENCES telegram_connections (id)
+                    )
+                    """
+                )
+                log_debug(f'tables seccessful created')
+            return None
+        
+    except Exception as ex:
+        log_error(f"Response from create_tables def: {ex}")
+        return None
+    
+async def insert_new_users(conn: aiomysql.Connection, user_id: int, time: datetime) -> None:
     """
     add a new row to the database
     """
-    connection = connect_test()
     try:
-
-        with connection.cursor() as cursor:
-
-            insert_query = "INSERT INTO users (user_id, spreadsheets_name)\
+        async with conn.cursor() as cursor:
+            insert_query = "INSERT INTO telegram_users.telegram_connections (user_id, connection_time)\
                             VALUES (%s, %s)"
-            val = (user_id, user_name)
+            val = (user_id, time)
               
-            cursor.execute(insert_query, val )
-            connection.commit()
-
+            await cursor.execute(insert_query, val)
+            await conn.commit()
+        log_debug(f'user added successfully')
+        return None
+    
     except Exception as ex:
-        return print(f'(Response from insert_new_users def...{ex}')
-    finally:
-        connection.close()
+        log_error(f"Response from insert_new_users def: {ex}")
+        return None
 
-def insert_new_sheets_info(user_id: str, sheets_name: str):
+async def insert_new_sheets_info(conn: aiomysql.Connection,
+                                  user_number: int,
+                                  sheet_name: str,
+                                  sheet_number: int,
+                                  data_range: str,
+                                  interval_value: int) -> None:
     """
     add a new sheets name
     """
-    connection = connect_test()
     try:
+        async with conn.cursor() as cursor:
+            insert_query = "INSERT INTO telegram_users.spreadsheets_users_data\
+                            (user_number, spreadsheets_name, sheet_number, data_range, interval_value)\
+                            VALUES (%s, %s, %s, %s, %s)"
+            val = (user_number, sheet_name, sheet_number, data_range, interval_value)
 
-        with connection.cursor() as cursor:
-
-            insert_query = "INSERT INTO user_tables (user_id, spreadsheets_name)\
-                            VALUES (%s, %s)"
-            val = (user_id, sheets_name)
-              
-            cursor.execute(insert_query, val)
-            connection.commit()
-
+            await cursor.execute(insert_query, val)
+            await conn.commit()
+        log_debug(f"user's spreadsheet info added")
+        return None
+    
     except Exception as ex:
-        return print(f'(Response from insert_new_users def...{ex}')
-    finally:
-        connection.close()
+        log_error(f"Response from insert_new_sheets_info def: {ex}")
+        return None
+
+async def extraction_query(conn: aiomysql.Connection, user_id: int) -> Optional[int]:
+    async with conn.cursor() as cursor:
+        try:
+            query = "SELECT ID FROM telegram_users.telegram_connections WHERE user_id = %s"
+            await cursor.execute(query, user_id)
+            result = await cursor.fetchone()
+
+            if result:
+                return result[0]
+            return None
         
-if __name__ == '__main__':
-    create_database()
-    create_users_table()
-    create_sheets_info_table()
+        except Exception as ex:
+            log_error(f"Response from extraction_query def: {ex}")
+            return None
+
+async def tracked_tables(conn: aiomysql.Connection, user_id: int) -> Optional[int]:
+    """
+    extracting all spreadsheets for traking
+    """
+    async with conn.cursor() as cursor:
+        try:
+            query = "SELECT * FROM telegram_users.spreadsheets_users_data WHERE user_number = %s"
+            await cursor.execute(query, user_id)
+            result = await cursor.fetchall()
+            return result
+        
+        except Exception as ex:
+            log_error(f"Response from tracked_tables def: {ex}")
+            return None
+        
+async def delete_spreadsheets(conn: aiomysql.Connection, user_id: int, id: int) -> Optional[int]:
+    async with conn.cursor() as cursor:
+        try:
+            query = """DELETE FROM telegram_users.spreadsheets_users_data
+                       WHERE id = %s and user_number = %s"""
+            await cursor.execute(query, id, user_id)
+            await cursor.commit()
+
+        except Exception as ex:
+            log_error(f"Response from delete_spreadsheets def: {ex}")
+            return None
+
