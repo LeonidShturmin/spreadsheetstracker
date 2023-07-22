@@ -1,0 +1,12 @@
+google-auth
+google-auth-oauthlib
+pandas
+gspread
+python-dotenv
+oauth2client
+aiogram
+PyMySQL
+aiomysql
+google_api_python_client
+python-dotenv
+cryptography
