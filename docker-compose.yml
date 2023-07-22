@@ -1,0 +1,37 @@
+version: '3'
+
+services:
+  telegram_bot:
+    image: telegram_bot:latest
+    restart: always
+    volumes: 
+      - /Volumes/credentials:/app/credentials
+      - /Volumes/logs_volume:/app/logs
+    environment:
+      MYSQL_HOST: "mysql"
+      MYSQL_PORT: 3306
+      MYSQL_USER: "root"
+      MYSQL_ROOT_PASSWORD: "1234"
+      MYSQL_DATABASE: "telegram_users"
+    secrets:
+      - token
+    depends_on:
+      - mysql
+    links:
+      - mysql
+
+  mysql:
+    image: mysql:latest
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: "1234"
+    ports:
+      - "3306:3306"
+
+volumes:
+  logs_volume:
+  credentials:
+
+secrets:
+  token:
+    file: token
