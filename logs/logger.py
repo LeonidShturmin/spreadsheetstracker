@@ -1,10 +1,9 @@
 import logging
 
-
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-handler = logging.FileHandler('/app/logs/logs.log')
+handler = logging.FileHandler('logs/logs.log')
 handler.setLevel(logging.DEBUG)
 
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')

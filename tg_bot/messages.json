@@ -1,0 +1,108 @@
+{
+    "fisrt_instruction": {
+        "eng": "Hello! in order to start tracking changes in your Google Spreadsheets, you need to: \n\n1️⃣ Add the service account that is listed below in the access settings of your spreadsheet (read-only) and click on the button '<strong>Service account has added</strong>'  \n\n2️⃣ Write to the bot the name of the Google Spreadsheets respecting the case \n\n3️⃣ Write sheet number \n\n Service account <code>googlesheetsaccess@sheetsauto-382306.iam.gserviceaccount.com</code>",
+        "ru": "Привет! для того, чтобы начать отслеживать изменения в Google таблицах необходимо: \n\n1️⃣ Добавить для чтения указанный ниже сервис-аккаун в настройках доступа твоей таблицы и нажать на кнопку  '<strong>Аккаунт добавлен</strong>'  \n\n2️⃣ Напиши боту название таблицы в точности соблюдая регистр \n\n3️⃣ Напиши боту номер листа \n\n Сервис аккаунт: <code>googlesheetsaccess@sheetsauto-382306.iam.gserviceaccount.com</code>"
+    },
+    "add_account_bottom": {
+        "eng": "Service account has added",
+        "ru": "Аккаунт добавлен"
+    },
+    "spreadsheet_name": {
+        "eng": "Write the name of the spreadsheet in case",
+        "ru": "Напиши название таблицы соблюдая регистр"
+    },
+    "page_number": {
+        "eng": "Write the sheet number",
+        "ru": "Напиши номер листа"
+    },
+    "sheet_conn": {
+        "eng": "Checking the connection..",
+        "ru": "Проверка соединения с таблицей"
+    },
+    "input_check": {
+        "eng": "Number must be an integer, enter again",
+        "ru": "Номер должным быть целым числом, введи еще раз"
+    },
+    "input_renge_1": {
+        "eng": "Dynamic",
+        "ru": "Динамический"
+    },
+    "input_renge_2": {
+        "eng": "Fix range",
+        "ru": "Фиксированный"
+    },
+    "succes_conn": {
+        "eng": "&#x2705; Successful connection!\n\nChoose a tracking type:\n\n<strong>'Dynamic'</strong> - range will be determined automaticallyand will expand dynamically when new rows or columns are added\n\n<strong>'Fixed range'</strong> - you need to set one ranges\n\nThe range must be of the format<strong>For example</strong>: <code>A1:B4, A4:C6</code>",
+        "ru": "&#x2705; Успешное соединение!\n\nВыбери тип отслеживания изменений:\n\n<strong>'Динамический'</strong> -  диапазон заполненности таблицы определится автоматически (необходимо, чтобы хотя бы одна ячейка была заполнена) и будет расширяться по мере добавления новых строк или столбцов\n\n<strong>'Фиксированный'</strong> - ты сам задаешь интересующий тебя диапазон отслеживания. <strong>Например</strong>: <code>A1:B4</code>"
+    },
+    "retry": {
+        "eng": "Enter data again",
+        "ru": "Ввести данные заново"
+    },
+    "conn_error": {
+        "eng": "\u274C Connection error...\n\nCheck the data:\n\nSpreadsheet name - {}\n\nSheet number - {}",
+        "ru": "\u274C Ошибка соединения...\n\nПроверь данные:\n\nНазвание таблицы - {}\n\nНомер листа - {}"
+    },
+    "enter_range": {
+        "eng": "Enter a range. I remind you that it must be in the format:<code>A1:B4</code>",
+        "ru": "Введите диапазон. Напоминаю, что ввод должен быть формата:<code>A1:B4</code>"
+    },
+    "set_interval_1": {
+        "eng": "starting range - {}. Enter the frequency of checking for changes in the Spreadsheet",
+        "ru": "Стартовый диапазон - {}. Установи периодичность проверки изменений в таблице в минутах"
+    },
+    "wrong_range": {
+        "eng": "The range must be of the format <code>A1:B4</code>. Enter again",
+        "ru": "Диапазон должен быть формата <code>A1:B4</code>. Введи еще раз"
+    },
+    "set_interval_2": {
+        "eng": "Enter a change tracking period for the Spreadsheet",
+        "ru": "Введи период отслеживания изменений в таблице"
+    },
+    "start_tracking": {
+        "eng": "Start tracking",
+        "ru": "Начать отслеживание"
+    },
+    "notice": {
+        "eng": "&#x2705; Ready! Change interval - {} (minut)",
+        "ru": "&#x2705; Готово! Период отслеживания изменений - {} (минута)"
+    },
+    "wrong_interval": {
+        "eng": "Interval must be an integer, please re-enter",
+        "ru": "Интервал должен быть целым неотрицательным числом. Введи еще раз"
+    },
+    "notice_2": {
+        "eng": "Wait for changes...\n\nUse the menu below, you can manage your Spreadsheets\n\n'Add Spreadsheet' - allows you to add a new Spreadsheet to track\n\n' Delete Spreadsheet' - allows you to view the list of Spreadsheets to be tracked and delete if necessary them\n\nIf you want to change a range or sheet in a Spreadsheet that you are already tracking, you must first delete it and then re-add it with a new sheet number and range",
+        "ru": "Ожидай изменений...\n\nИспользуя меню ниже, ты можешь управлять своими таблицами\n\n'Добавить талицу' - позволяет добавить новую таблицу для отслеживание\n\n'Удалить таблиу' - позволяет просмотреть список отслеживаемых таблиц и по необходимости удалить их\n\nЕсли ты хочешь изменить диапазон или лист в таблице, которую уже отслеживаешь, то необходимо сначала удалить ее, а затем добавить заново с новым номером листа и диапазоном"
+    },
+    "add_table": {
+        "eng": "Add Spreadsheet",
+        "ru": "Добавить таблицу"
+    },
+    "delete_table": {
+        "eng": "Delete Spreadsheet",
+        "ru": "Удалить таблицу"
+    },
+    "empty_table_list": {
+        "eng": "List of monitored Spreadsheets is empty",
+        "ru": "Список отслеживаемых таблиц пуст"
+    },
+    "table_select": {
+        "eng": "Select a Spreadsheet from the list and enter its number to delete",
+        "ru": "Выберите таблицу из списка и введите его номер для удаления"
+    },
+    "table_info": {
+        "eng": "<strong>Number</strong>: - {}\n<strong>Spreadsheet name:</strong> - {}\n<strong>Sheet number:</strong> - {}\n<strong>Range:</strong> - {}\n<strong>Tracking interval:</strong> - {}",
+        "ru": "<strong>Номер</strong>: - {}\n<strong>Название таблицы:</strong> - {}\n<strong>Номер листа:</strong> - {}\n<strong>Диапазон:</strong> - {}\n<strong>Интервал обновлений:</strong> - {}"
+    },
+    "succes_delete": {
+        "eng": "The Spreadsheet deleted successfully",
+        "ru": "Таблица успешно удалена"
+    },
+    "non_existent_table": {
+        "eng": "You are not tracking spreadsheet with this number",
+        "ru": "Вы не отслеживаете таблицу с таким номером"
+    }
+
+
+} 

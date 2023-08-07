@@ -1,4 +1,5 @@
-.env
+config/.env
 
+credentials/
 __pycache__/
-trakcer_bot/
+tracker_bot/

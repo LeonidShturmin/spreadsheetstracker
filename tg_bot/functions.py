@@ -1,3 +1,6 @@
+import sys
+sys.path.append('logs/')
+
 import re
 
 import gspread

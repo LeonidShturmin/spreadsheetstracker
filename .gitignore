@@ -1,7 +1,9 @@
-.env
+config/.env
 .pylintrc
 .vscode/
 tracker_bot/
+credentials/credentials.json
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
