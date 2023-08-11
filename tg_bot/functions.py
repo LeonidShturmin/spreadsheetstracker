@@ -1,31 +1,28 @@
 import sys
-sys.path.append('logs/')
 
 import re
+from typing import Optional
+from typing import Union, Tuple
 
 import gspread
-from typing import Optional
 from gspread.utils import column_letter_to_index
 from oauth2client.service_account import ServiceAccountCredentials
 from google.auth.exceptions import GoogleAuthError
 from googleapiclient.errors import HttpError
-from typing import Union, Tuple
 import numpy as np
 
+sys.path.append('app/logs/')
 from logger import log_error
-
-ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
 async def speardsheets_connection_check(account_file: str, scopes: list, spreadsheet_name: str,
                                   sheet_number: int) -> Union[Tuple[
                                       bool, gspread.worksheet.Worksheet], None]:
     """
-    checking a connection with Google Sheets API
-    :param account_file: Path to credentials file
-    :param spreadsheet_name: Name of spreadseets
-    :param scopes: Rights of success
-    :return: A tuple containing the join flag and the table sheet object, or None on error
-    :sheet_number: Number of sheet 
+    Проверка соединения с Google таблицей
+
+    :param account_file: файл с правами доступа 
+    :param spreadsheet_name: название Google таблицы 
+    :param scopes: настройки прав доступа 
     """
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(
@@ -46,10 +43,10 @@ async def speardsheets_connection_check(account_file: str, scopes: list, spreads
 
 async def converting_of_number(column: int) -> Optional[str]:
     """
-    the function takes as input the column number (str)
-    and returns its letter match in the spreadsheet
-    for example column number 27 is AA in the google spreadsheet
+    Функция принимает номер столбца в гугл таблице и возвращается его буквенное название
+    например колонка 27 будет конвертирована в АА
     """
+    ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     try:
         if column // 26 == 0:
             column = ALPHABET[column - 1]
@@ -63,27 +60,30 @@ async def converting_of_number(column: int) -> Optional[str]:
 
 async def search_ranges(sheets: gspread.worksheet.Worksheet, start_coords: dict = None) -> Optional[tuple[dict, list]]:
     """
-    the function looks for a range of cells in a spreadsheet with values.
-    Returns the coordinates of a range and a list of values in that range  
+    Функция обращается к заданной пользователем Google таблице двумя способами:
+    1) в случае, если пользователю передал координаты в формате A1:B1, функция возвращает значения
+    ячеек в этом диапазоне посредством метода .range
+    2) Если пользователь не передал координаты, то метод .get_all_values() возвращает значения всех заполенных ячеек и коорднаты заполненнго диапазона
     """
     user_coordinates = {"leftcol": 'A', "leftrow": 1,
                         "rightcol": 'A', "rightrow":  1}
     pattern = r"^[A-Z]+[0-9]+:[A-Z]+[0-9]+$"
     all_values = []
     try:
-        if start_coords is None or start_coords == 'dynamic':
-            all_values = sheets.get_all_values()
+        if start_coords is None or start_coords == 'dynamic': # случай №2
+            all_values = sheets.get_all_values() # возврат значений всех заполенных ячеек 
             number_of_columns = len(all_values[0])
 
             user_coordinates['rightrow'] = len(all_values)
             user_coordinates['rightcol'] = await converting_of_number(
                 number_of_columns)
 
-        else:
-            match = re.match(pattern, start_coords)
+        else: # случай №1
+            match = re.match(pattern, start_coords) # проверка корректности передачи диапазона в start_coords
+
             if match is None:
                 return False, False
-            values = sheets.range(start_coords)
+            values = sheets.range(start_coords) # возврат значений из заданного пользователем диапазона, если он корректно передан в аргумент start_coords
 
             find_value = r"'([^']*)'"
             letters = re.findall("[A-Z]+", start_coords)
@@ -115,17 +115,16 @@ async def search_ranges(sheets: gspread.worksheet.Worksheet, start_coords: dict 
 
 async def compare_of_ranges(range_data: list) -> Optional[bool]:
     """
-    the function compares the range size. If the range has changed,
-    the number of added rows and columns is returned
-
-    :range_data: two-dimensional array with data from a table at 2 points in time
+    Функция проверяет размеры массивов (заполенных диапазонов в Google таблице). Относится к случаю №2 из функции search_ranges
+    :range_data: двумерный массив значений ячеек в таблице в два промежутка времени
     """
     try:
         range_data_1 = np.array(range_data[0])
         range_data_2 = np.array(range_data[1])
         
-        if len(range_data_1) != len(range_data_2) or len(range_data_1[0]) != len(range_data_2[0]):
+        if len(range_data_1) != len(range_data_2) or len(range_data_1[0]) != len(range_data_2[0]): # сравнением массивов длине и ширине
             return False
+        
         return True
     
     except Exception as ex:
@@ -134,10 +133,7 @@ async def compare_of_ranges(range_data: list) -> Optional[bool]:
 
 async def compare_of_values(data: list) -> Optional[tuple[bool, list[str]]]:
     """
-    function to compare values in a table at two points in time
-
-    :param data: A tuple of two lists of lists of strings.
-    :return: Tuple of flag and dictionary with changes.
+    Функция сравнивает значения ячеек в два промежутка времени 
     """
     try:
         flag = np.array_equal(data[0], data[1])

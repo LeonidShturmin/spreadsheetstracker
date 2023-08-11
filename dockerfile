@@ -6,4 +6,4 @@ WORKDIR /app
 
 RUN pip install -r requirements.txt
 
-CMD ["sh", "-c", "sleep 150s && python bot.py"]
+CMD ["sh", "-c", "sleep 150s && python tg_bot/bot.py"]

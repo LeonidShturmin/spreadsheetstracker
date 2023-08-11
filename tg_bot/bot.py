@@ -21,7 +21,7 @@ from config import SERVICE_ACCOUNT_FILE, SCOPES, tg_token, host, port, user, db_
 from logger import log_error
 
 with open('tg_bot/messages.json', 'r') as file:
-    messages_dict = json.load(file)
+    messages_dict = json.load(file) # двуязычный словарь с сообщениями от бота 
 
 bot = Bot(token=tg_token)
 storage = MemoryStorage()
@@ -31,7 +31,7 @@ class UserState(StatesGroup):
     """
     Описание пользовательских состояний 
     """
-    table_name = State()
+    table_name = State() 
     sheet_number = State()
     range = State()
     interval = State()
@@ -50,10 +50,10 @@ async def start_command(message: types.Message):
     """
     Установка пользователем языка
     """
-    markup = InlineKeyboardMarkup()
+    markup = InlineKeyboardMarkup() 
     item_1 = InlineKeyboardButton(text="🇷🇺 Русский", callback_data="Russian")
     item_2 = InlineKeyboardButton(text="🇬🇧 English", callback_data="English")
-    markup.add(item_1, item_2)
+    markup.add(item_1, item_2) # возвращает пользователю две кнопки "🇷🇺 Русский" и "🇬🇧 English"
 
     await message.answer(text="Выбери язык/Choose language:", reply_markup=markup)
 
@@ -64,7 +64,7 @@ async def general_instruction(callback_query: types.CallbackQuery):
     отслеживать изменения в Google таблица.
     """
     global language
-    if callback_query.data == "Russian":
+    if callback_query.data == "Russian": #  установка пользователем языка
         language = 'ru'
     else:
         language = 'eng'
@@ -72,17 +72,17 @@ async def general_instruction(callback_query: types.CallbackQuery):
     try:
         now = datetime.datetime.now()
         user_id = callback_query.message.chat.id
-        connection = await db_connection_check(host, port, user, password, user_id)
-        users_telegram_id = [value[0] for value in await tg_user_id_list(connection)]
+        connection = await db_connection_check(host, port, user, password, user_id) # возвращает соединение с базой 
+        users_telegram_id = [value[0] for value in await tg_user_id_list(connection)] # список подключенных к боту пользователей
 
         if user_id not in users_telegram_id: # проверка на то, подключался ли ранее пользователь к боту
-            await insert_new_users(connection, user_id, now) # добавление нового пользователя в бд
+            await insert_new_users(connection, user_id, now) # добавление нового пользователя в бд, если user_id не найден в users_telegram_id
             text_1 = await bot_messages("fisrt_instruction", language)
             text_2 = await bot_messages("add_account_bottom", language)
 
             markup = InlineKeyboardMarkup()
             item = InlineKeyboardButton(text=text_2, callback_data="account_added")
-            markup.add(item)
+            markup.add(item) 
             await bot.send_message(chat_id=user_id, text=text_1, parse_mode="HTML", reply_markup=markup)
 
         else: 
@@ -374,8 +374,8 @@ async def command_handler(message: types.Message):
     try:
         user_id = message.chat.id
         connection = await db_connection_check(host, port, user, password, user_id)
-        user_number = await extraction_query(connection, user_id)
-        user_tables = await tracked_tables(connection, user_number)
+        user_number = await extraction_query(connection, user_id) # номер пользователя в базе
+        user_tables = await tracked_tables(connection, user_number) # кол-во отслеживаемых пользователем таблиц 
 
         if message.text in ['Add table', 'Добавить таблицу']:
             text_1 = await bot_messages("spreadsheet_name", language)
@@ -403,7 +403,8 @@ async def command_handler(message: types.Message):
 @dp.message_handler(state=UserState.tables_manage)
 async def manage_table(message: types.Message, state: FSMContext):
     """
-    Функция перехватывает состояние UserState.tables_manage, установленное в функции command_handler
+    Функция перехватывает состояние UserState.tables_manage, установленное в функции command_handler и реализует логику
+    удаления таблицы из базы данных
     """
     user_id = message.chat.id
     connection = await db_connection_check(host, port, user, password, user_id)
@@ -413,17 +414,21 @@ async def manage_table(message: types.Message, state: FSMContext):
         table_id = int(message.text)
         if table_id in user_tables_id: # если пользователь ввел номер таблицы и она присутствует в перечне, то функция delete_spreadsheets удаляет ее из бд
             text_1 = await bot_messages("succes_delete", language)
+
             await delete_spreadsheets(connection, table_id, user_number)
             await bot.send_message(chat_id=message.chat.id, text=text_1)
             await state.finish()
 
-        elif table_id not in user_tables_id and user_tables_id != []:
+        elif table_id not in user_tables_id and user_tables_id != []: # если пользователь ввел номер таблицы и она отсутствует в перечне,
+            # то пользователю возвращается сообщение о том, что такого номера нет в базе
             text_2 = await bot_messages("non_existent_table", language)
+
             await bot.send_message(chat_id=message.chat.id, text=text_2)
             await state.finish()
 
-        elif len(user_tables_id) == 0:
+        elif len(user_tables_id) == 0: # если user_id_tables возвращает пустой список, пользователю направляется сообщение о том, что его список таблиц пуст
             text_3 = await bot_messages("empty_table_list", language)
+
             await bot.send_message(chat_id=message.chat.id, text=text_3)
             await state.finish()
 

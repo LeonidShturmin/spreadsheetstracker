@@ -17,13 +17,7 @@ for i in logger_list:
     logging.getLogger(i).setLevel('ERROR')
 
 def log_debug(msg: str):
-    """
-    dfdfdfdfd
-    """
     logger.debug(msg, exc_info=False)
 
 def log_error(msg: str):
-    """
-    dfdfddf
-    """
     logger.error(msg, exc_info=False)
