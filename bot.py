@@ -1,4 +1,3 @@
-import sys
 import datetime
 import json
 
@@ -10,17 +9,14 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
-for folders in ['logs/', 'mysql_db/', 'tg_bot/', 'config/']:
-    sys.path.append(folders)
+from python_modules.functions import speardsheets_connection_check, search_ranges, compare_of_values, compare_of_ranges
+from python_modules.mysql_db_init import db_connection_check, setup_db
+from python_modules.db_functions import user_id_tables, tg_user_id_list, insert_new_users, insert_new_sheets_info
+from python_modules.db_functions import extraction_query, tracked_tables, delete_spreadsheets
+from config.config import SERVICE_ACCOUNT_FILE, SCOPES, tg_token, host, port, user, db_name, password
+from logs.logger import log_error
 
-from functions import speardsheets_connection_check, search_ranges, compare_of_values, compare_of_ranges
-from mysql_db_init import db_connection_check, setup_db
-from db_functions import user_id_tables, tg_user_id_list, insert_new_users, insert_new_sheets_info
-from db_functions import extraction_query, tracked_tables, delete_spreadsheets
-from config import SERVICE_ACCOUNT_FILE, SCOPES, tg_token, host, port, user, db_name, password
-from logger import log_error
-
-with open('tg_bot/messages.json', 'r') as file:
+with open('python_modules/messages.json', 'r') as file:
     messages_dict = json.load(file) # двуязычный словарь с сообщениями от бота 
 
 bot = Bot(token=tg_token)

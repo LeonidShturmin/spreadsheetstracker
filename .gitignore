@@ -4,6 +4,7 @@ config/.env
 .vscode/
 tracker_bot/
 credentials/credentials.json
+.DS_Store
 
 
 # Byte-compiled / optimized / DLL files

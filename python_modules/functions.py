@@ -1,5 +1,3 @@
-import sys
-
 import re
 from typing import Optional
 from typing import Union, Tuple
@@ -11,14 +9,13 @@ from google.auth.exceptions import GoogleAuthError
 from googleapiclient.errors import HttpError
 import numpy as np
 
-sys.path.append('app/logs/')
-from logger import log_error
+from logs.logger import log_error
 
 async def speardsheets_connection_check(account_file: str, scopes: list, spreadsheet_name: str,
                                   sheet_number: int) -> Union[Tuple[
                                       bool, gspread.worksheet.Worksheet], None]:
     """
-    Проверка соединения с Google таблицей
+    Проверка соединения с Google таблицейн
 
     :param account_file: файл с правами доступа 
     :param spreadsheet_name: название Google таблицы 

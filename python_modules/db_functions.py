@@ -1,11 +1,9 @@
-import sys
 from typing import Optional
 from datetime import datetime
 
 import aiomysql
 
-sys.path.append('logs/')
-from logger import log_debug, log_error
+from logs.logger import log_debug, log_error
 
 async def insert_new_users(conn: aiomysql.Connection, user_id: int, time: datetime) -> None:
     """

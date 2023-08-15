@@ -1,10 +1,9 @@
-import sys
 from typing import Optional
+
 import aiomysql
 import pymysql
 
-sys.path.append('logs/')
-from logger import log_debug, log_error
+from logs.logger import log_debug, log_error
 
 def server_connect_check(host: str, port: int, user: str, password: str) -> Optional[pymysql.Connection]:
     """
